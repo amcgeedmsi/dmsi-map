@@ -100,6 +100,18 @@
     margin-left: clamp(10px, 2.5vw, 24px);
   }
 
+  .esri-zoom .esri-widget--button {
+    width: clamp(20px, 5vw, 32px) !important;
+    height: clamp(20px, 5vw, 32px) !important;
+    font-size: clamp(10px, 2.5vw, 15px) !important;
+  }
+
+  .esri-popup, .esri-popup * {
+    margin: revert;
+    padding: revert;
+    box-sizing: revert;
+  }
+
   .esri-attribution {
     font-size: 10px !important;
   }
@@ -137,6 +149,11 @@
     });
 
     view.when(function() {
+      // Ensure full US visible on narrow screens (mobile/tablet)
+      if (view.width < 700) {
+        view.scale = view.scale * (700 / view.width);
+      }
+
       var layers = webmap.layers.items;
       var targetLayer = null;
 
