@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>DMSi Team Member Map</title>
+<link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+
+  #mapView {
+    width: 100%;
+    height: 100%;
+  }
+
+  .country-key {
+    position: absolute;
+    bottom: clamp(6px, 2vw, 16px);
+    left: clamp(6px, 2vw, 16px);
+    background: rgba(255, 255, 255, 0.93);
+    border-radius: clamp(4px, 0.8vw, 6px);
+    padding: clamp(6px, 1.5vw, 14px) clamp(8px, 2vw, 18px);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    font-size: clamp(9px, 1.8vw, 13px);
+    line-height: 1.3;
+    z-index: 10;
+    min-width: clamp(100px, 20vw, 180px);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+
+  .country-key .key-title {
+    font-weight: 700;
+    font-size: clamp(8px, 1.6vw, 12px);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #545859;
+    margin-bottom: clamp(4px, 1vw, 10px);
+    padding-bottom: clamp(3px, 0.8vw, 8px);
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  .country-key .key-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: clamp(1px, 0.4vw, 4px) 0;
+    color: #333;
+  }
+
+  .country-key .key-row .country-name {
+    font-weight: 400;
+  }
+
+  .country-key .key-row .country-count {
+    font-weight: 700;
+    margin-left: clamp(10px, 2.5vw, 24px);
+    color: #545859;
+  }
+
+  .country-key .key-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: clamp(3px, 0.8vw, 8px);
+    margin-top: clamp(3px, 0.8vw, 8px);
+    border-top: 1px solid #e0e0e0;
+    font-weight: 700;
+    color: #333;
+  }
+
+  .country-key .key-total .country-count {
+    color: #DC4405;
+    font-weight: 700;
+    margin-left: clamp(10px, 2.5vw, 24px);
+  }
+
+  .esri-attribution {
+    font-size: 10px !important;
+  }
+</style>
+</head>
+<body>
+
+<div id="mapView"></div>
+
+<script src="https://js.arcgis.com/4.29/"></script>
+<script>
+  require([
+    "esri/WebMap",
+    "esri/views/MapView",
+    "esri/rest/support/Query"
+  ], function(WebMap, MapView, Query) {
+
+    var isMobile = window.innerWidth <= 600;
+
+    var webmap = new WebMap({
+      portalItem: {
+        id: "36c70501674e4b1ab17431fed089beb9"
+      }
+    });
+
+    var view = new MapView({
+      container: "mapView",
+      map: webmap,
+      center: [-96, 37],
+      scale: 73957190.9489445,
+      ui: {
+        components: ["zoom", "attribution"]
+      },
+      constraints: {
+        minZoom: 2
+      }
+    });
+
+    view.when(function() {
+      var layers = webmap.layers.items;
+      var targetLayer = null;
+
+      for (var i = 0; i < layers.length; i++) {
+        var layer = layers[i];
+        if (layer.type === 'feature' || layer.type === 'csv' || layer.type === 'geojson') {
+          targetLayer = layer;
+          break;
+        }
+      }
+
+      if (!targetLayer) {
+        for (var i = 0; i < layers.length; i++) {
+          var layer = layers[i];
+          if (layer.layers) {
+            for (var j = 0; j < layer.layers.items.length; j++) {
+              targetLayer = layer.layers.items[j];
+              break;
+            }
+          }
+          if (targetLayer) break;
+        }
+      }
+
+      if (!targetLayer) {
+        addKeyToMap(view, null);
+        return;
+      }
+
+      targetLayer.load().then(function() {
+        var countryField = null;
+        for (var i = 0; i < targetLayer.fields.length; i++) {
+          var name = targetLayer.fields[i].name.toLowerCase();
+          if (name === 'country' || name === 'country_1' || name.indexOf('country') > -1) {
+            countryField = targetLayer.fields[i].name;
+            break;
+          }
+        }
+
+        if (!countryField) {
+          addKeyToMap(view, null);
+          return;
+        }
+
+        var query = targetLayer.createQuery();
+        query.where = '1=1';
+        query.outStatistics = [{
+          statisticType: 'count',
+          onStatisticField: countryField,
+          outStatisticFieldName: 'total'
+        }];
+        query.groupByFieldsForStatistics = [countryField];
+
+        targetLayer.queryFeatures(query).then(function(result) {
+          var counts = {};
+          for (var i = 0; i < result.features.length; i++) {
+            var name = result.features[i].attributes[countryField];
+            var count = result.features[i].attributes['total'];
+            if (name) counts[name] = count;
+          }
+          addKeyToMap(view, counts);
+        }).catch(function() {
+          var simpleQuery = targetLayer.createQuery();
+          simpleQuery.where = '1=1';
+          simpleQuery.outFields = [countryField];
+          simpleQuery.returnGeometry = false;
+          simpleQuery.num = 5000;
+
+          targetLayer.queryFeatures(simpleQuery).then(function(result) {
+            var counts = {};
+            for (var i = 0; i < result.features.length; i++) {
+              var name = result.features[i].attributes[countryField];
+              if (name) counts[name] = (counts[name] || 0) + 1;
+            }
+            addKeyToMap(view, counts);
+          }).catch(function() {
+            addKeyToMap(view, null);
+          });
+        });
+      });
+    });
+
+    function addKeyToMap(view, counts) {
+      var keyDiv = document.createElement('div');
+      keyDiv.className = 'country-key';
+
+      if (!counts || Object.keys(counts).length === 0) {
+        keyDiv.textContent = 'Unable to load counts';
+        view.ui.add(keyDiv, 'bottom-left');
+        return;
+      }
+
+      var sorted = Object.entries(counts).sort(function(a, b) { return b[1] - a[1]; });
+      var total = sorted.reduce(function(sum, entry) { return sum + entry[1]; }, 0);
+
+      var html = '<div class="key-title">Team Member Headcount</div>';
+
+      for (var i = 0; i < sorted.length; i++) {
+        html += '<div class="key-row">' +
+          '<span class="country-name">' + sorted[i][0] + '</span>' +
+          '<span class="country-count">' + sorted[i][1].toLocaleString() + '</span>' +
+          '</div>';
+      }
+
+      html += '<div class="key-total">' +
+        '<span>Total</span>' +
+        '<span class="country-count">' + total.toLocaleString() + '</span>' +
+        '</div>';
+
+      keyDiv.innerHTML = html;
+      view.ui.add(keyDiv, 'bottom-left');
+    }
+  });
+</script>
+
+</body>
+</html>
