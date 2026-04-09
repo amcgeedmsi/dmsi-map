@@ -101,9 +101,9 @@
   }
 
   .esri-zoom .esri-widget--button {
-    width: clamp(20px, 5vw, 32px) !important;
-    height: clamp(20px, 5vw, 32px) !important;
-    font-size: clamp(10px, 2.5vw, 15px) !important;
+    width: clamp(16px, 4vw, 32px) !important;
+    height: clamp(16px, 4vw, 32px) !important;
+    font-size: clamp(8px, 2vw, 15px) !important;
   }
 
   .esri-popup, .esri-popup * {
@@ -149,9 +149,9 @@
     });
 
     view.when(function() {
-      // Ensure full US visible on narrow screens (mobile/tablet)
-      if (view.width < 700) {
-        view.scale = view.scale * (700 / view.width);
+      // Ensure full US visible on narrow screens (mobile SharePoint ~346px)
+      if (view.width < 500) {
+        view.zoom = 2;
       }
 
       var layers = webmap.layers.items;
